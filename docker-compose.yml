@@ -1,0 +1,16 @@
+version: '3'
+
+services:
+  basic-bot:
+    # location of the docker file to build up the image
+    build:
+      context: .
+      dockerfile: Dockerfile
+    # custom image name tag
+    image: basic-bot:latest
+
+    # mapping the source code folder with the docker container folder for development by using volumes would need a dependancy like watchdog in python and a different CMD in the Dockerfile to restart the bot each time some change is made, so I am just using docker-compose up and down for now each time I make a change as its not that often
+
+    # specifying the environment variables (as .env file not copied in the docker image)
+    env_file:
+      - .env
