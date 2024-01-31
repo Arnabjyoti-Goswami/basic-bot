@@ -17,18 +17,31 @@ def is_unicode_emoji(emoji_str: str):
         return False
 
 
-def get_emoji(guild: discord.Guild, emoji_name: str) -> discord.Emoji | None | str:
+def get_emoji_from_payload(
+    guild: discord.Guild, emoji_payload: str, get_name: bool = False
+) -> discord.Emoji | None | str:
     """
-    Accepts the discord server and the discord emoji name string as arguments, and returns the unicode string for the emoji or the discord emoji if its a server specific emoji, or None if it doesn't exist in either of the two
-    """
-    # check if it's a custom guild emoji
-    for emoji in guild.emojis:
-        if emoji.name == emoji_name:
-            return emoji
+    Return the discord Emoji class object for raw emoji payload strings (e.g: <:JohnnyDawg:1202322942646812712> is the format for custom emojis that are server specific and not built-in discord) that are obtained by the bot in long strings like a message.
 
-    # check if it's a built in discord emoji and return None or the unicode str for the emoji (if required to get the unicode str from the discord emoji name itself, we can use a simple lookup table cuz discord uses their own unique names for the emojis: https://github.com/sevenc-nanashi/discord-emoji/tree/main, here its not required because the message description obtained from the embed itslelf contains the emojis in their unicode form)
-    if is_unicode_emoji(emoji_name):
-        return emoji_name
+    Return the unicode emoji string if its not a custom emoji.
+
+    Return None if its neither.
+
+    get_name bool param: PartialEmoji and Emoji class can't be == operated. So if this param is True, get name from the Emoji class object after finding it, and return the name str instead of the Emoji object. For the bot to add the intial reactions, this would be False. This would be true, for the bot to compare a role's emoji specified in the embed message, with the reacted emoji by a user.
+    """
+    match = re.match(r"<:(.+):(\d+)>", emoji_payload)
+
+    if match:
+        name, id = match.groups()
+        for emoji in guild.emojis:
+            if emoji.name == name:
+                if get_name:
+                    return emoji.name
+                return emoji
+
+    # check if it's a built in discord emoji and return None or the unicode str for the emoji (if required to get the unicode str from the discord emoji name itself, we can use a simple lookup table cuz discord uses their own unique names for the emojis: https://github.com/sevenc-nanashi/discord-emoji/tree/main, here its not required because the message description obtained from the embed itself contains the emojis in their unicode form)
+    if is_unicode_emoji(emoji_payload):
+        return emoji_payload
     else:
         return None
 

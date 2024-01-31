@@ -5,7 +5,7 @@ import discord
 from discord.ext import commands
 from dotenv import load_dotenv
 
-from utils import get_emoji, parse_duration
+from utils import get_emoji_from_payload, parse_duration
 
 # Intents configuration
 intents = discord.Intents.default()
@@ -73,8 +73,6 @@ async def self_roles(ctx: commands.Context, *, details: str):
         await ctx.send(f"Invalid format for this command.")
         return
 
-    print(description)
-
     embed = discord.Embed(
         title=title,
         description=description,
@@ -86,7 +84,10 @@ async def self_roles(ctx: commands.Context, *, details: str):
     for role_info in roles:
         try:
             emoji, role_name = role_info.strip().split(" ", 1)
-            role_emoji = get_emoji(ctx.guild, emoji)
+            emoji = emoji.strip()
+            role_name = role_name.strip()
+
+            role_emoji = get_emoji_from_payload(ctx.guild, emoji)
 
             if role_emoji:
                 await sent_message.add_reaction(role_emoji)
@@ -97,28 +98,36 @@ async def self_roles(ctx: commands.Context, *, details: str):
 
 
 @bot.event
-async def on_reaction_add(
-    reaction: discord.Reaction, user: discord.User | discord.Member
-):
+async def on_raw_reaction_add(payload: discord.RawReactionActionEvent):
     """
     Configure the actions to be performed in the server according to the reactions added to the messages of the bot
     """
+    # get is used to get it from the bot's cache for the current run of this script, fetch is used to fetch it from discord directly
+    channel = bot.get_channel(payload.channel_id)
+    if not channel:
+        bot.fetch_channel(payload.channel_id)
+    message = await channel.fetch_message(payload.message_id)
+    user = bot.get_user(payload.user_id)
+    if not user:
+        user = await bot.fetch_user(payload.user_id)
+    guild = bot.get_guild(payload.guild_id)
+    if not guild:
+        guild = bot.fetch_guild(payload.guild_id)
+
+    # The custom emoji name, if applicable, or the unicode codepoint of the non-custom emoji. This can be None if the emoji got deleted (e.g. removing a reaction with a deleted emoji) [copied from discord.py documentation]:
+    reacted_emoji = payload.emoji.name
+
     # don't respond to reactions from bots
     if user.bot:
         return
 
-    guild = reaction.message.channel.guild
-    reacted_emoji = reaction.emoji
-
     # check if the bot's message is an embed
     if not (
-        reaction.message.isinstance(reaction.message.embeds, list)
-        and reaction.message.embeds
-        and len(reaction.message.embeds) == 1
+        isinstance(message.embeds, list) and message.embeds and len(message.embeds) == 1
     ):
         return
 
-    embed = reaction.message.embeds[0]  # assuming there's only one embed in the message
+    embed = message.embeds[0]  # assuming there's only one embed in the message
     bot_msg = embed.title
     details = embed.description
 
@@ -138,7 +147,8 @@ async def on_reaction_add(
             emoji, role_name = role_info.strip().split(" ", 1)
             emoji = emoji.strip()
             role_name = role_name.strip()
-            role_emoji = get_emoji(guild, emoji)
+
+            role_emoji = get_emoji_from_payload(guild, emoji, get_name=True)
 
             allowed_emojis.append(role_emoji)
 
@@ -156,34 +166,48 @@ async def on_reaction_add(
 
     # remove the reacted emoji if its not in the self_roles msg of the bot
     if reacted_emoji not in allowed_emojis:
-        await reaction.remove(user)
+        await message.remove_reaction(payload.emoji, user)
 
 
 @bot.event
-async def on_reaction_remove(
-    reaction: discord.Reaction, user: discord.User | discord.Member
-):
+async def on_raw_reaction_remove(payload: discord.RawReactionActionEvent):
     """
     Configure the actions to be performed in the server according to the reactions removed from the messages of the bot
     """
+    # get is used to get it from the bot's cache for the current run of this script, fetch is used to fetch it from discord directly
+    channel = bot.get_channel(payload.channel_id)
+    if not channel:
+        bot.fetch_channel(payload.channel_id)
+    message = await channel.fetch_message(payload.message_id)
+    user = bot.get_user(payload.user_id)
+    if not user:
+        user = await bot.fetch_user(payload.user_id)
+    guild = bot.get_guild(payload.guild_id)
+    if not guild:
+        guild = bot.fetch_guild(payload.guild_id)
+
+    # The custom emoji name, if applicable, or the unicode codepoint of the non-custom emoji. This can be None if the emoji got deleted (e.g. removing a reaction with a deleted emoji) [copied from discord.py documentation]:
+    reacted_emoji = payload.emoji.name
+
     # don't respond to reactions from bots
     if user.bot:
         return
 
-    guild = reaction.message.channel.guild
-    reacted_emoji = reaction.emoji
-    msg_embeds = reaction.message.embeds
-
     # check if the bot's message is an embed
-    if not (isinstance(msg_embeds, list) and msg_embeds):
+    if not (
+        isinstance(message.embeds, list) and message.embeds and len(message.embeds) == 1
+    ):
         return
 
-    embed = msg_embeds[0]  # assuming there's only one embed in the message
+    embed = message.embeds[0]  # assuming there's only one embed in the message
     bot_msg = embed.title
     details = embed.description
 
-    # only do something for added reactions to the bot's message if the bot's message contains a specific string
-    if not bot_msg.lower().startswith("react"):
+    substring1 = "react"
+    substring2 = "role"
+
+    # only do something for added reactions to the bot's message if the bot's message contains a specific substring
+    if not (substring1 in bot_msg.lower() or substring2 in bot_msg.lower()):
         return
 
     roles = details.split("\n")
@@ -193,7 +217,8 @@ async def on_reaction_remove(
             emoji, role_name = role_info.strip().split(" ", 1)
             emoji = emoji.strip()
             role_name = role_name.strip()
-            role_emoji = get_emoji(guild, emoji)
+
+            role_emoji = get_emoji_from_payload(guild, emoji, get_name=True)
 
             role = discord.utils.get(guild.roles, name=role_name)
 
