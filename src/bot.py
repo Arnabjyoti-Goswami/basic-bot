@@ -57,15 +57,31 @@ async def self_roles(ctx: commands.Context, *, details: str):
     if ctx.author.bot or not ctx.author.guild_permissions.administrator:
         return
 
+    try:
+        details = details.strip()
+        line_list = details.split("\n", 1)
+
+        if not len(line_list) > 1:
+            await ctx.send(f"Invalid format for this command.")
+            return
+
+        title = line_list[0].strip()
+        description = line_list[1].strip()
+
+        roles = description.split("\n")
+    except:
+        await ctx.send(f"Invalid format for this command.")
+        return
+
+    print(description)
+
     embed = discord.Embed(
-        title="React Here to grab your Roles",
-        description=details.strip(),
+        title=title,
+        description=description,
         color=discord.Color.blue(),
     )
 
     sent_message = await ctx.send(embed=embed)
-
-    roles = details.strip().split("\n")
 
     for role_info in roles:
         try:
@@ -102,8 +118,11 @@ async def on_reaction_add(
     bot_msg = embed.title
     details = embed.description
 
-    # only do something for added reactions to the bot's message if the bot's message contains a specific string
-    if not bot_msg.lower().startswith("react"):
+    substring1 = "react"
+    substring2 = "role"
+
+    # only do something for added reactions to the bot's message if the bot's message contains a specific substring
+    if not (substring1 in bot_msg.lower() or substring2 in bot_msg.lower()):
         return
 
     roles = details.split("\n")
