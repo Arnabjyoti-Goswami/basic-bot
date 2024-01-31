@@ -111,7 +111,11 @@ async def on_reaction_add(
     reacted_emoji = reaction.emoji
 
     # check if the bot's message is an embed
-    if not (isinstance(reaction.message.embeds, list) and reaction.message.embeds):
+    if not (
+        reaction.message.isinstance(reaction.message.embeds, list)
+        and reaction.message.embeds
+        and len(reaction.message.embeds) == 1
+    ):
         return
 
     embed = reaction.message.embeds[0]  # assuming there's only one embed in the message
