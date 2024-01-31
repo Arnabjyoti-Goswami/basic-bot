@@ -242,20 +242,23 @@ async def unmute(ctx: commands.Context, member: discord.Member):
             await ctx.send(f"{member.mention} is not muted.")
     else:
         await ctx.send(
-            "The 'muted' role does not exist. Create it or use the 'mute' command once."
+            f"The {muted_role_name} role does not exist. Create it or use the 'mute' command once."
         )
 
 
-@bot.command(name="reminder")
-async def remind_me(ctx: commands.Context, duration: str, *, message: str):
+@bot.command(name="remind_me")
+async def remind_me(
+    ctx: commands.Context, duration: str | None = None, *, message: str | None = None
+):
     """
     Configure the reminder command of the bot
     """
-    if not duration or not message:
-        await ctx.send("Please provide a valid duration and message for the reminder.")
-        return
+    if not duration:
+        await ctx.send(
+            "Please provide a valid duration for the reminder.\nOptionally, also provide a message for the reminder after the duration."
+        )
 
-    duration_seconds = parse_duration(duration).total_seconds()
+    duration_seconds = parse_duration(duration)
     if not duration_seconds:
         await ctx.send(
             "Invalid duration format. Please use a valid duration format (e.g., '1h30m')."
@@ -267,7 +270,67 @@ async def remind_me(ctx: commands.Context, duration: str, *, message: str):
     await asyncio.sleep(duration_seconds)
 
     # Send the reminder message after the specified duration
-    await ctx.send(f"{ctx.author.mention}, {message}")
+    if message:
+        await ctx.send(f"{ctx.author.mention}, reminder: {message}")
+    else:
+        await ctx.send(f"{ctx.author.mention}, a reminder was set for this time!")
+
+
+@bot.command(name="verify")
+async def verify(ctx: commands.context, member: discord.Member):
+    """
+    Configure the verify command of the bot
+    """
+    # check if the command is used by a bot or a user without the administrator permission
+    if ctx.author.bot or not ctx.author.guild_permissions.administrator:
+        return
+
+    verified_role_name = "verified"
+    unverified_role_name = "unverified"
+    verified_role = discord.utils.get(ctx.guild.roles, name=verified_role_name)
+    unverified_role = discord.utils.get(ctx.guild.roles, name=unverified_role_name)
+
+    if not verified_role:
+        ctx.send(f"Role {verified_role_name} doesn't exist, please create it first.")
+        return
+
+    if not unverified_role:
+        # if there is no unverified role then just give the mentioned user
+        # the verified role without removing the unverified role
+        await member.add_roles(unverified_role)
+        await ctx.send(f"{member.mention} has been verified.")
+        return
+
+    await member.remove_roles(unverified_role)
+    await member.add_roles(verified_role)
+    await ctx.send(f"{member.mention} has been verified.")
+
+
+@bot.command(name="unverify")
+async def unverify(ctx: commands.Context, member: discord.Member):
+    # check if the command is used by a bot or a user without the administrator permission
+    if ctx.author.bot or not ctx.author.guild_permissions.administrator:
+        return
+
+    verified_role_name = "verified"
+    unverified_role_name = "unverified"
+    verified_role = discord.utils.get(ctx.guild.roles, name=verified_role_name)
+    unverified_role = discord.utils.get(ctx.guild.roles, name=unverified_role_name)
+
+    if not verified_role:
+        ctx.send(f"Role {verified_role_name} doesn't exist, please create it first.")
+        return
+
+    if not unverified_role:
+        ctx.send(f"Role {unverified_role_name} doesn't exist, please create it first")
+        return
+
+    if verified_role in member.roles:
+        await member.remove_roles(verified_role)
+        await member.add_roles(unverified_role)
+        await ctx.send(f"{member.mention} has been unverified.")
+    else:
+        await ctx.send(f"{member.mention} is not verified.")
 
 
 if __name__ == "__main__":
